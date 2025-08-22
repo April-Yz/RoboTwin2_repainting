@@ -21,15 +21,15 @@ class RobotRenderer:
     """机器人渲染器类，用于根据末端位置和相机外参渲染机器人场景"""
     
     def __init__(self, 
-                 image_width: int = 640, 
-                 image_height: int = 360,
-                 enable_viewer: bool = False,
-                 fovy_deg: float = 90.0,
-                 ground_height: float = 0.0,
-                 world_z_offset: float = 0.0,
-                 arms_z_offset: float = 0.0,
-                 debug_minimal_alignment: bool = False,
-                 debug_zero_rotation: bool = False,
+                 image_width=640, 
+                 image_height=360,
+                 enable_viewer=False,
+                 fovy_deg=90.0,
+                 ground_height=0.0,
+                 world_z_offset=0.0,
+                 arms_z_offset=0.0,
+                 debug_minimal_alignment=False,
+                 debug_zero_rotation=False
                  ):
         """
         初始化机器人渲染器
@@ -446,6 +446,10 @@ class RobotRenderer:
                 
             print(f"Final left end pose: {final_left_pose}")
             print(f"Final right end pose: {final_right_pose}")
+            
+            # 保存最终位置供后续使用
+            self._final_left_pose = final_left_pose
+            self._final_right_pose = final_right_pose
                 
         except Exception as e:
             print(f"Error in set_arm_poses: {e}")
@@ -484,10 +488,57 @@ class RobotRenderer:
         print("Setting simplified arm poses (placeholder implementation)")
         pass
     
-    def render_frame(self) -> np.ndarray:
+    def get_final_hand_positions(self):
+        """
+        返回左右手最后位置
+        
+        Returns:
+            tuple: (final_left_pose, final_right_pose) 左右手最后位置
+        """
+        if hasattr(self, '_final_left_pose') and hasattr(self, '_final_right_pose'):
+            return self._final_left_pose, self._final_right_pose
+        else:
+            print("Warning: Final hand positions not available yet")
+            return None, None
+            
+    def calculate_hand_distance(self, left_pos, right_pos):
+        """
+        计算左右手坐标各维度的距离
+        
+        Args:
+            left_pos: 左手位置 [x, y, z, ...]  
+            right_pos: 右手位置 [x, y, z, ...]
+            
+        Returns:
+            tuple: (dx, dy, dz, d_total) 各维度距离和总距离
+        """
+        if left_pos is None or right_pos is None:
+            return None, None, None, None
+            
+        # 提取位置部分（前3个元素）
+        left_xyz = np.array(left_pos[:3])
+        right_xyz = np.array(right_pos[:3])
+        
+        # 计算各维度差异
+        dx = right_xyz[0] - left_xyz[0]
+        dy = right_xyz[1] - left_xyz[1]
+        dz = right_xyz[2] - left_xyz[2]
+        
+        # 计算总距离
+        d_total = np.sqrt(dx**2 + dy**2 + dz**2)
+        
+        return dx, dy, dz, d_total
+    
+    def render_frame(self, show_hand_distance=False, show_json_distance=False, original_left_pos=None, original_right_pos=None) -> np.ndarray:
         """
         渲染当前帧
         
+        Args:
+            show_hand_distance: 是否显示左右手距离
+            show_json_distance: 是否显示原始JSON坐标差异
+            original_left_pos: 原始JSON中左手位置
+            original_right_pos: 原始JSON中右手位置
+            
         Returns:
             np.ndarray: RGB图像 (H, W, 3)，数据类型为uint8
         """
@@ -503,6 +554,38 @@ class RobotRenderer:
         # 获取RGB图像（去掉alpha通道）
         rgb = camera_rgba_img[:, :, :3]
         rgb = cv2.flip(rgb, -1)
+        
+        # 如果需要显示左右手距离
+        if show_hand_distance:
+            final_left_pose, final_right_pose = self.get_final_hand_positions()
+            if final_left_pose is not None and final_right_pose is not None:
+                dx, dy, dz, d_total = self.calculate_hand_distance(final_left_pose, final_right_pose)
+                distance_text = f"LAST: dx={dx:.3f}, dy={dy:.3f}, dz={dz:.3f}, d={d_total:.3f}"
+                
+                # 在图像顶部添加文本
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                font_scale = 0.8  # 增大字体
+                thickness = 2  # 加粗字体
+                text_size, _ = cv2.getTextSize(distance_text, font, font_scale, thickness)
+                
+                # 直接添加文本，不使用背景
+                text_y = 30  # 稍微下移文本位置
+                cv2.putText(rgb, distance_text, (10, text_y), font, font_scale, (0, 0, 0), thickness, cv2.LINE_AA)
+        
+        # 如果需要显示原始JSON坐标差异
+        if show_json_distance and original_left_pos is not None and original_right_pos is not None:
+            dx, dy, dz, d_total = self.calculate_hand_distance(original_left_pos, original_right_pos)
+            json_text = f"JSON: dx={dx:.3f}, dy={dy:.3f}, dz={dz:.3f}, d={d_total:.3f}"
+            
+            # 在图像顶部添加文本（在机器人手距离下方）
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 0.8  # 增大字体
+            thickness = 2  # 加粗字体
+            text_size, _ = cv2.getTextSize(json_text, font, font_scale, thickness)
+            
+            # 直接添加文本，不使用背景
+            text_y = 70 if show_hand_distance else 30  # 调整文本位置
+            cv2.putText(rgb, json_text, (10, text_y), font, font_scale, (0, 0, 0), thickness, cv2.LINE_AA)
         
         return rgb
 
@@ -527,7 +610,11 @@ class RobotRenderer:
                     left_end_pos: Union[list, np.ndarray],
                     left_end_rot: Union[list, np.ndarray],
                     right_end_pos: Union[list, np.ndarray],
-                    right_end_rot: Union[list, np.ndarray]) -> np.ndarray:
+                    right_end_rot: Union[list, np.ndarray],
+                    show_hand_distance: bool = False,
+                    show_json_distance: bool = False,
+                    original_left_pos: Union[list, np.ndarray] = None,
+                    original_right_pos: Union[list, np.ndarray] = None) -> np.ndarray:
         """一键渲染：设置所有参数并渲染场景"""
         # 设置机器人基座位置
         self.set_robot_base_pose(camera_extrinsics)
@@ -539,7 +626,7 @@ class RobotRenderer:
         self.set_arm_poses(left_end_pos, left_end_rot, right_end_pos, right_end_rot)
         
         # 渲染并返回图像
-        return self.render_frame()
+        return self.render_frame(show_hand_distance, show_json_distance, original_left_pos, original_right_pos)
     
     def show_viewer(self):
         """显示可视化窗口（如果启用了viewer）"""
@@ -632,8 +719,10 @@ def calculate_gripper_pose(thumb_tip_pos, index_tip_pos, index_joint_pos):
 def generate_robot_video(json_path: str, 
                         output_video_path: str = "robot_animation.mp4",
                         num_frames: int = 10,
-                        fps: int = 10,
-                        task_name: str = "clean_cups"):
+                        fps: int = 30,
+                        task_name: str = "clean_cups",
+                        show_hand_distance: bool = False,
+                        show_json_distance: bool = False):
     """
     生成机器人动作视频
     
@@ -642,6 +731,9 @@ def generate_robot_video(json_path: str,
         output_video_path: 输出视频文件路径
         num_frames: 要渲染的帧数
         fps: 视频帧率
+        task_name: 任务名称
+        show_hand_distance: 是否显示左右手距离
+        show_json_distance: 是否显示原始JSON坐标差异
     """
     
     # 加载JSON数据
@@ -759,7 +851,7 @@ def generate_robot_video(json_path: str,
             # ])     
             xy_to_yx = np.array([
                 [0,  0,  1],
-                [0,  1,  0],
+                [0,  -1,  0],
                 [-1,  0,  0]
             ])        
             # 应用坐标系变换
@@ -787,20 +879,17 @@ def generate_robot_video(json_path: str,
             
             
             
-            
-            # clean cups world_base_pose:  [-0.03613232  1.220203    0.]
-            # 假设比人手长1.2倍
             left_pos_world[:3] *= 1.1
             right_pos_world[:3] *= 1.1
             print(f"倍数后 世界系左腕位置: {left_pos_world}")
             print(f"倍数后世界系右腕位置: {right_pos_world}")        
             left_pos_world[0] -=0.1 #+= 1.6 #1.55#1.6 #1.3 # 本来就是[-0.8,-1.2]左右
             right_pos_world[0] -= 0.1 #+= 1.6 # 1.55 #1.6 #1.3 
-            left_pos_world[1] -=1.45 # -= 0.2 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
-            right_pos_world[1] -=1.65 #-=0.2 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
-            left_pos_world[2] += 1.1  # 1.5
-            right_pos_world[2] += 1.1 #1.5  # 1.2  
-    
+            left_pos_world[1] +=1.0 # -= 0.2 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
+            right_pos_world[1] +=1.0 #-=0.2 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
+            left_pos_world[2] += 1.3  # 1.5
+            right_pos_world[2] += 1.3 #1.5  # 1.2     
+            
     
     
         
@@ -865,8 +954,16 @@ def generate_robot_video(json_path: str,
                 right_rot_world=right_rot_world,
             )
 
-            # 渲染当前帧
-            rgb_image = renderer.render_frame()
+            # 渲染当前帧，如果需要显示距离信息，则传入原始位置
+            original_left_pos = data["left"]["thumbTip"]["position"][frame_idx] if show_json_distance else None
+            original_right_pos = data["right"]["thumbTip"]["position"][frame_idx] if show_json_distance else None
+            
+            rgb_image = renderer.render_frame(
+                show_hand_distance=show_hand_distance,
+                show_json_distance=show_json_distance,
+                original_left_pos=original_left_pos,
+                original_right_pos=original_right_pos
+            )
             
             # 转换为BGR格式
             bgr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
@@ -910,8 +1007,8 @@ def demo_usage(frame_idx=0):
     import json
 
     # json_path = "/home/pine/RoboTwin2/code_painting/clean_surface/0_wrist_data.json"
-    json_path = "/home/pine/RoboTwin2/code_painting/clean_cups/0_wrist_data.json"
-    # json_path = "/home/pine/RoboTwin2/code_painting/assemble_disassemble_furniture_bench_lamp/0_wrist_data.json"
+    # json_path = "/home/pine/RoboTwin2/code_painting/clean_cups/0_wrist_data.json"
+    json_path = "/home/pine/RoboTwin2/code_painting/assemble_disassemble_furniture_bench_lamp/0_wrist_data.json"
     
     with open(json_path, "r") as f:
         data = json.load(f)
@@ -1095,7 +1192,7 @@ def demo_usage(frame_idx=0):
     # ])  
     xy_to_yx = np.array([
         [0,  0,  1],
-        [0,  1,  0],
+        [0,  -1,  0],
         [-1,  0,  0]
     ])     
     left_pos_world = left_pos_world @ xy_to_yx
@@ -1131,16 +1228,16 @@ def demo_usage(frame_idx=0):
     right_pos_world[:3] *= 1.1
     print(f"倍数后 世界系左腕位置: {left_pos_world}")
     print(f"倍数后世界系右腕位置: {right_pos_world}")        
-    left_pos_world[0] -=0.2 #+= 1.6 #1.55#1.6 #1.3 # 本来就是[-0.8,-1.2]左右
-    right_pos_world[0] -= 0.2 #+= 1.6 # 1.55 #1.6 #1.3 
-    left_pos_world[1] -=1.5 # -= 0.2 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
-    right_pos_world[1] -=1.6 #-=0.2 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
-    left_pos_world[2] += 1.1  # 1.5
-    right_pos_world[2] += 1.1 #1.5  # 1.2           
+    left_pos_world[0] -=0.1 #+= 1.6 #1.55#1.6 #1.3 # 本来就是[-0.8,-1.2]左右
+    right_pos_world[0] -= 0.1 #+= 1.6 # 1.55 #1.6 #1.3 
+    left_pos_world[1] +=1.0 # -= 0.2 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
+    right_pos_world[1] +=1.0 #-=0.2 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
+    left_pos_world[2] += 1.3  # 1.5
+    right_pos_world[2] += 1.3 #1.5  # 1.2           
     
     print(f"相机位置: {camera_position}")
-    print(f"世界系左腕位置: {left_pos_world}")
-    print(f"世界系右腕位置: {right_pos_world}")
+    print(f"+-后世界系左腕位置: {left_pos_world}")
+    print(f"+-后世界系右腕位置: {right_pos_world}")
     
     print("===============左右手朝向绕Y轴变换180度===============")
     # 原来的在手腕上
@@ -1227,30 +1324,134 @@ def demo_usage(frame_idx=0):
     print("Rendering complete.")
 
 
+def create_side_by_side_video(original_video_path: str, generated_video_path: str, output_path: str, fps: int = 30):
+    """
+    创建原始视频和生成视频并排的对比视频
+    
+    Args:
+        original_video_path: 原始视频路径
+        generated_video_path: 生成的机器人视频路径
+        output_path: 输出并排视频路径
+        fps: 输出视频的帧率
+    """
+    # 打开原始视频和生成的视频
+    cap_original = cv2.VideoCapture(original_video_path)
+    cap_generated = cv2.VideoCapture(generated_video_path)
+    
+    # 检查视频是否打开成功
+    if not cap_original.isOpened() or not cap_generated.isOpened():
+        print(f"Error: 无法打开视频文件")
+        if not cap_original.isOpened():
+            print(f"  - 原始视频文件不存在或损坏: {original_video_path}")
+        if not cap_generated.isOpened():
+            print(f"  - 生成的视频文件不存在或损坏: {generated_video_path}")
+        return
+    
+    # 获取视频尺寸和帧数
+    width_orig = int(cap_original.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height_orig = int(cap_original.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    width_gen = int(cap_generated.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height_gen = int(cap_generated.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    frame_count_orig = int(cap_original.get(cv2.CAP_PROP_FRAME_COUNT))
+    frame_count_gen = int(cap_generated.get(cv2.CAP_PROP_FRAME_COUNT))
+    
+    print(f"原始视频: {width_orig}x{height_orig}, {frame_count_orig} 帧")
+    print(f"生成视频: {width_gen}x{height_gen}, {frame_count_gen} 帧")
+    
+    # 计算目标尺寸
+    target_height = max(height_orig, height_gen)
+    combined_width = width_orig + width_gen
+    
+    # 创建视频写入器
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_path, fourcc, fps, (combined_width, target_height))
+    
+    # 计算处理的帧数
+    frame_count = min(frame_count_orig, frame_count_gen)
+    
+    print(f"开始创建并排视频，总共 {frame_count} 帧...")
+    
+    # 处理每一帧
+    for i in range(frame_count):
+        # 读取原始视频帧
+        ret_orig, frame_orig = cap_original.read()
+        if not ret_orig:
+            break
+        
+        # 读取生成的视频帧
+        ret_gen, frame_gen = cap_generated.read()
+        if not ret_gen:
+            break
+        
+        # 调整尺寸
+        if height_orig != target_height:
+            frame_orig = cv2.resize(frame_orig, (width_orig, target_height))
+        if height_gen != target_height:
+            frame_gen = cv2.resize(frame_gen, (width_gen, target_height))
+        
+        # 创建并排帧
+        combined_frame = np.hstack((frame_orig, frame_gen))
+        
+        # 添加帧号信息
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        cv2.putText(combined_frame, f"Frame: {i+1}/{frame_count}", (10, 30), font, 1, (255, 255, 255), 2, cv2.LINE_AA)
+        
+        # 写入帧
+        out.write(combined_frame)
+        
+        # 每10帧显示一次进度
+        if i % 10 == 0:
+            print(f"Processing: {i+1}/{frame_count} frames ({(i+1)/frame_count*100:.1f}%)")
+    
+    # 释放资源
+    cap_original.release()
+    cap_generated.release()
+    out.release()
+    
+    print(f"并排视频创建完成，保存到: {output_path}")
+
 def demo_video_generation():
     """演示视频生成功能"""
     # JSON数据文件路径
     # task_name =["basic_fold"]
     num_frames = 299 #399 # 299
-    task_name = "clean_cups" #"basic_pick_place" #"add_remove_lid"   # "assemble_disassemble_furniture_bench_lamp"  #"clean_surface" # "clean_cups"
-    json_path = f"/home/pine/RoboTwin2/code_painting/{task_name}/0_wrist_data.json"
+    task_name = "assemble_disassemble_furniture_bench_lamp" 
+    #"basic_pick_place" #"add_remove_lid"   # "assemble_disassemble_furniture_bench_lamp"  
+    # #"clean_surface" # "clean_cups"
+    video_id = "2"
+    json_path = f"/home/pine/RoboTwin2/code_painting/{task_name}/{video_id}_wrist_data.json"
+    video_path = f"/home/pine/RoboTwin2/code_painting/{task_name}/{task_name}_{video_id}_thumb_simple.mp4"
+    
+    fps = 5  # 默认值
+
     
     # 输出视频路径
-    output_video_path = f"code_painting/{task_name}/B_xy_case1_1_robot_animation_{num_frames}frames.mp4"
+    output_video_path = f"code_painting/{task_name}/{video_id}_xz_forward_{num_frames}frames_{fps}fps.mp4"
     
-    # 生成前10帧的视频
+    # 生成机器人视频
     generate_robot_video(
         json_path=json_path,
         output_video_path=output_video_path,
         num_frames=num_frames, #299, #10,
-        fps=5,  # 5fps，播放较慢便于观察
-        task_name=task_name
+        fps=fps,  # 使用用户指定的帧率
+        task_name=task_name,
+        show_hand_distance=True,  # 显示左右手距离
+        show_json_distance=True   # 显示原始JSON坐标差异
+    )
+    
+    # 创建并排视频
+    side_by_side_path = f"code_painting/{task_name}/{video_id}_side_by_side_{fps}fps.mp4"
+    create_side_by_side_video(
+        original_video_path=video_path,
+        generated_video_path=output_video_path,
+        output_path=side_by_side_path,
+        fps=fps
     )
 
 
 if __name__ == "__main__":
     # 选择运行模式
-    mode = input("选择运行模式 (1: 单帧渲染, 2: 视频生成): ").strip()
+    mode = input("选择运行模式 (1: 单帧渲染, 2: 视频生成, 3: 创建并排视频): ").strip()
     
     if mode == "1":
         # 获取用户输入的帧索引
@@ -1263,6 +1464,48 @@ if __name__ == "__main__":
             demo_usage()
     elif mode == "2":
         demo_video_generation()
+    elif mode == "3":
+        # 单独创建并排视频
+        task_name = "assemble_disassemble_furniture_bench_lamp"
+        video_id = "0"
+        
+        # 让用户输入帧率
+        # fps_input = input("请输入生成视频的帧率(FPS)，默认30: ")
+        fps = 5  # 默认值
+        # if fps_input.strip():
+        #     try:
+        #         fps = int(fps_input)
+        #         if fps <= 0:
+        #             print("帧率必须大于0，将使用默认值30")
+        #             fps = 30
+        #     except ValueError:
+        #         print("无效的帧率输入，将使用默认值30")
+        
+        # 让用户输入帧数
+        # frames_input = input("请输入帧数，默认299: ")
+        num_frames = 299  # 默认值
+        # if frames_input.strip():
+        #     try:
+        #         num_frames = int(frames_input)
+        #         if num_frames <= 0:
+        #             print("帧数必须大于0，将使用默认值299")
+        #             num_frames = 299
+        #     except ValueError:
+        #         print("无效的帧数输入，将使用默认值299")
+        
+        # 原始视频路径
+        original_video = f"/home/pine/RoboTwin2/code_painting/{task_name}/{video_id}.mp4"
+        # 生成的机器人视频路径
+        generated_video = f"code_painting/{task_name}/{video_id}_xz_forward_{num_frames}frames_{fps}fps.mp4"
+        # 输出并排视频路径
+        output_path = f"code_painting/{task_name}/{video_id}_side_by_side_{fps}fps.mp4"
+        
+        create_side_by_side_video(
+            original_video_path=original_video,
+            generated_video_path=generated_video,
+            output_path=output_path,
+            fps=fps
+        )
     else:
         print("无效选择，运行单帧渲染...")
         demo_usage()
