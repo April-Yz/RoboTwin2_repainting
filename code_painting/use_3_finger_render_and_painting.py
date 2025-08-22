@@ -276,7 +276,7 @@ class RobotRenderer:
         self.robot.set_planner(self.scene)
         print(f"Robot base set to: Position {robot_base_pos}, Yaw {np.rad2deg(yaw):.2f}°")
 
-    def adjust_position_along_z_axis(self, position: np.ndarray, rotation: np.ndarray, distance: float = -0.09):
+    def adjust_position_along_z_axis(self, position: np.ndarray, rotation: np.ndarray, distance: float = -0.00):
         """
         沿着手腕的z轴方向调整位置（默认缩小8cm）
         
@@ -298,14 +298,26 @@ class RobotRenderer:
             return position
             
         # 获取z轴方向（旋转矩阵的第三列）
-        z_axis = rot_matrix[:, 2]
-        
+        # z_axis = rot_matrix[:, 2]
+        # 试一下y轴 0x 1y
+        print("============= rot_matrix =============", rot_matrix)
+        z_axis = rot_matrix[:, 1]
+        # z_axis = np.array([0, -1, 0])
+
+        R_y180 = np.array([[1, 0, 0],
+                        [ 0, 0, -1], # -z 10:10
+                        [ 0, -1, 0]], dtype=float)
+        # R_y180_right = np.array([[1, 0, 0],
+        #                         [0, 0, -1],
+        #                         [0, -1, 0]], dtype=float)           
         # 沿z轴方向调整位置
         adjusted_position = position.copy()
-        adjusted_position[:3] += distance * z_axis
+        adjusted_position[:3] += distance * z_axis @ R_y180
         
         print(f"原始位置: {position[:3]}")
         print(f"Z轴方向: {z_axis}")
+        print(f"调整距离1: {distance * z_axis}")
+        print(f"调整距离: {distance * z_axis @ R_y180}")
         print(f"调整后位置: {adjusted_position[:3]}")
         
         return adjusted_position
@@ -708,7 +720,7 @@ def generate_robot_video(json_path: str,
             camera_rotation = camera_rotation @ opencv_to_sapien
             
             # 调整相机位置，提高高度
-            camera_position[2] += 1.6
+            camera_position[2] += 1.5
             camera_extrinsics = {"position": camera_position.tolist(), "rotation": camera_rotation.tolist()}
 
 
@@ -739,12 +751,17 @@ def generate_robot_video(json_path: str,
             print(f"计算的左手夹爪位置: {left_pos_world}")
             print(f"计算的右手夹爪位置: {right_pos_world}")
             
-            # 坐标系变换
+            # # 坐标系变换
+            # xy_to_yx = np.array([
+            #     [0,  -1,  0],
+            #     [-1,  0,  0],
+            #     [0,  0,  1]
+            # ])     
             xy_to_yx = np.array([
-                [0,  -1,  0],
-                [-1,  0,  0],
-                [0,  0,  1]
-            ])     
+                [0,  0,  1],
+                [0,  1,  0],
+                [-1,  0,  0]
+            ])        
             # 应用坐标系变换
             left_pos_world = left_pos_world @ xy_to_yx
             right_pos_world = right_pos_world @ xy_to_yx
@@ -753,17 +770,40 @@ def generate_robot_video(json_path: str,
             # left_rot_world = left_rot_world @ xy_to_yx
             # right_rot_world = right_rot_world @ xy_to_yx
             
-            # 应用缩放因子
+            # # 应用缩放因子
+            # left_pos_world[:3] *= 1.1
+            # right_pos_world[:3] *= 1.1
+            # print(f"倍数后 世界系左腕位置: {left_pos_world}")
+            # print(f"倍数后世界系右腕位置: {right_pos_world}")        
+            # left_pos_world[0] += 1.6 #1.55#1.6 #1.3 # 本来就是[-0.8,-1.2]左右
+            # right_pos_world[0] += 1.6 # 1.55 #1.6 #1.3 
+            # # left_pos_world[1] -= 0.15 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
+            # left_pos_world[1] -= 0.1 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
+            # # right_pos_world[1] -=0.15 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
+            # right_pos_world[1] -=0.3 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
+            # left_pos_world[2] += 1.55  # 1.5
+            # right_pos_world[2] += 1.55 #1.5  # 1.2 
+            
+            
+            
+            
+            
+            # clean cups world_base_pose:  [-0.03613232  1.220203    0.]
+            # 假设比人手长1.2倍
             left_pos_world[:3] *= 1.1
             right_pos_world[:3] *= 1.1
             print(f"倍数后 世界系左腕位置: {left_pos_world}")
             print(f"倍数后世界系右腕位置: {right_pos_world}")        
-            left_pos_world[0] += 1.6 #1.55#1.6 #1.3 # 本来就是[-0.8,-1.2]左右
-            right_pos_world[0] += 1.6 # 1.55 #1.6 #1.3 
-            left_pos_world[1] -= 0.15 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
-            right_pos_world[1] -=0.15 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
-            left_pos_world[2] += 1.55  # 1.5
-            right_pos_world[2] += 1.55 #1.5  # 1.2     
+            left_pos_world[0] -=0.1 #+= 1.6 #1.55#1.6 #1.3 # 本来就是[-0.8,-1.2]左右
+            right_pos_world[0] -= 0.1 #+= 1.6 # 1.55 #1.6 #1.3 
+            left_pos_world[1] -=1.45 # -= 0.2 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
+            right_pos_world[1] -=1.65 #-=0.2 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
+            left_pos_world[2] += 1.1  # 1.5
+            right_pos_world[2] += 1.1 #1.5  # 1.2  
+    
+    
+    
+        
                      
             print(f"Frame {frame_idx}: 相机位置: {camera_position}")
             print(f"Frame {frame_idx}: 左腕位置: {left_pos_world}")
@@ -790,16 +830,29 @@ def generate_robot_video(json_path: str,
             # R_y180_right = np.array([[0, 1, 0],
             #                         [0, 0, -1],
             #                         [1, 0, 0]], dtype=float)
-            R_y180_left = np.array([[0, 0, 1],
-                                    [ 1, 0, 0], # -z 10:10
+            # R_y180_left = np.array([[-1, 0, 0],
+            #                         [ 0, 0, 1], # -z 10:10
+            #                         [ 0, -1, 0]], dtype=float)
+            # R_y180_right = np.array([[-1, 0, 0],
+            #                         [0, 0, 1],
+            #                         [0, -1, 0]], dtype=float)
+            R_y180_left = np.array([[1, 0, 0],
+                                    [ 0, 0, -1], # -z 10:10
                                     [ 0, -1, 0]], dtype=float)
-            R_y180_right = np.array([[0, 0, 1],
-                                    [1, 0, 0],
-                                    [0, -1, 0]], dtype=float)
-    
+            R_y180_right = np.array([[1, 0, 0],
+                                    [0, 0, -1],
+                                    [0, -1, 0]], dtype=float)    
             left_rot_world = R_y180_left @ left_rot_world
             right_rot_world = R_y180_right @ right_rot_world
-
+            # 设置手臂朝前的旋转矩阵
+            # 朝前意味着末端执行器的Z轴指向正前方（+Y方向）
+            forward_rotation_euler = [np.pi, 0, 0]  # 绕Z轴旋转90度
+            # forward_rotation_euler = [0, np.pi, 0]  # 绕Z轴旋转90度
+            forward_rot_mat = t3d_euler.euler2mat(*forward_rotation_euler, 'sxyz')
+            left_rot_world = forward_rot_mat
+            right_rot_world = forward_rot_mat
+            print(f"世界系左腕向前旋转矩阵: \n{left_rot_world}")
+            print(f"世界系右腕向前旋转矩阵: \n{right_rot_world}")
             # 只在第一帧设置机器人基座位置
             if frame_idx == 0:
                 renderer.set_robot_base_pose(camera_extrinsics)
@@ -830,7 +883,7 @@ def generate_robot_video(json_path: str,
             video_writer.write(bgr_image)
             
             # 可选：保存每一帧为图片（用于调试）
-            frame_dir = f"code_painting/{task_name}/B_case13_1"
+            frame_dir = f"code_painting/{task_name}/B_case1_1"
             if not os.path.exists(frame_dir):
                 os.makedirs(frame_dir)
             frame_path = f"{frame_dir}/frame_{frame_idx:04d}.png"
@@ -1030,10 +1083,20 @@ def demo_usage(frame_idx=0):
     print("\n=== 使用新函数计算夹爪位姿 ===")
     print(f"世界系左腕初始位置: {left_pos_world}")
     print(f"世界系右腕初始位置: {right_pos_world}")
+    # xy_to_yx = np.array([
+    #     [0,  -1,  0],
+    #     [-1,  0,  0],
+    #     [0,  0,  1]
+    # ])     
+    # xy_to_yx = np.array([
+    #     [-1,  0,  0],
+    #     [0,  -1,  0],
+    #     [0,  0,  1]
+    # ])  
     xy_to_yx = np.array([
-        [0,  -1,  0],
-        [-1,  0,  0],
-        [0,  0,  1]
+        [0,  0,  1],
+        [0,  1,  0],
+        [-1,  0,  0]
     ])     
     left_pos_world = left_pos_world @ xy_to_yx
     right_pos_world = right_pos_world @ xy_to_yx
@@ -1046,19 +1109,34 @@ def demo_usage(frame_idx=0):
     # left_pos_world[2] += 1.6
     # right_pos_world[2] += 1.6
     
+    # # xy可能反了
+    # # clean cups world_base_pose:  [-0.03613232  1.220203    0.]
+    # # 假设比人手长1.2倍
+    # left_pos_world[:3] *= 1.1
+    # right_pos_world[:3] *= 1.1
+    # print(f"倍数后 世界系左腕位置: {left_pos_world}")
+    # print(f"倍数后世界系右腕位置: {right_pos_world}")        
+    # left_pos_world[0] += 1.6 #1.55#1.6 #1.3 # 本来就是[-0.8,-1.2]左右
+    # right_pos_world[0] += 1.6 # 1.55 #1.6 #1.3 
+    # # left_pos_world[1] -= 0.2 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
+    # left_pos_world[1] -= 0.1 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
+    # # right_pos_world[1] -=0.2 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
+    # right_pos_world[1] -=0.3 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
+    # left_pos_world[2] += 1.55  # 1.5
+    # right_pos_world[2] += 1.55 #1.5  # 1.2    
+
     # clean cups world_base_pose:  [-0.03613232  1.220203    0.]
     # 假设比人手长1.2倍
     left_pos_world[:3] *= 1.1
     right_pos_world[:3] *= 1.1
     print(f"倍数后 世界系左腕位置: {left_pos_world}")
     print(f"倍数后世界系右腕位置: {right_pos_world}")        
-    left_pos_world[0] += 1.7 #1.55#1.6 #1.3 # 本来就是[-0.8,-1.2]左右
-    right_pos_world[0] += 1.7 # 1.55 #1.6 #1.3 
-    left_pos_world[1] -= 0.2 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
-    right_pos_world[1] -=0.2 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
-    left_pos_world[2] += 1.55  # 1.5
-    right_pos_world[2] += 1.55 #1.5  # 1.2    
-           
+    left_pos_world[0] -=0.2 #+= 1.6 #1.55#1.6 #1.3 # 本来就是[-0.8,-1.2]左右
+    right_pos_world[0] -= 0.2 #+= 1.6 # 1.55 #1.6 #1.3 
+    left_pos_world[1] -=1.5 # -= 0.2 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
+    right_pos_world[1] -=1.6 #-=0.2 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
+    left_pos_world[2] += 1.1  # 1.5
+    right_pos_world[2] += 1.1 #1.5  # 1.2           
     
     print(f"相机位置: {camera_position}")
     print(f"世界系左腕位置: {left_pos_world}")
@@ -1073,26 +1151,33 @@ def demo_usage(frame_idx=0):
     #                          [0, 0, 1],
     #                          [1, 0, 0]], dtype=float)
 
-
-    R_y180_left = np.array([[0, 0, -1],
-                            [ 1, 0, 0], # -z 10:10
+   # 预备一下 x=z也可能？
+    # R_y180_left = np.array([[0, 0, 1],
+    #                         [ 1, 0, 0], # -z 10:10
+    #                         [ 0, -1, 0]], dtype=float)
+    # R_y180_right = np.array([[0, 0, 1],
+    #                         [1, 0, 0],
+    #                         [0, -1, 0]], dtype=float)
+    
+    R_y180_left = np.array([[-1, 0, 0],
+                            [ 0, 0, -1], # -z 10:10
                             [ 0, -1, 0]], dtype=float)
-    R_y180_right = np.array([[0, 0, -1],
-                            [1, 0, 0],
+    R_y180_right = np.array([[-1, 0, 0],
+                            [0, 0, -1],
                             [0, -1, 0]], dtype=float)
     # 左右手位置变换
     left_rot_world  = R_y180_left @ left_rot_world
     right_rot_world = R_y180_right @ right_rot_world
 
-    # # 设置手臂朝前的旋转矩阵
-    # # 朝前意味着末端执行器的Z轴指向正前方（+Y方向）
-    # forward_rotation_euler = [np.pi, 0, 0]  # 绕Z轴旋转90度
-    # # forward_rotation_euler = [0, np.pi, 0]  # 绕Z轴旋转90度
-    # forward_rot_mat = t3d_euler.euler2mat(*forward_rotation_euler, 'sxyz')
-    # left_rot_world = forward_rot_mat
-    # right_rot_world = forward_rot_mat
-    # print(f"世界系左腕向前旋转矩阵: \n{left_rot_world}")
-    # print(f"世界系右腕向前旋转矩阵: \n{right_rot_world}")
+    # 设置手臂朝前的旋转矩阵
+    # 朝前意味着末端执行器的Z轴指向正前方（+Y方向）
+    forward_rotation_euler = [np.pi, 0, 0]  # 绕Z轴旋转90度
+    # forward_rotation_euler = [0, np.pi, 0]  # 绕Z轴旋转90度
+    forward_rot_mat = t3d_euler.euler2mat(*forward_rotation_euler, 'sxyz')
+    left_rot_world = forward_rot_mat
+    right_rot_world = forward_rot_mat
+    print(f"世界系左腕向前旋转矩阵: \n{left_rot_world}")
+    print(f"世界系右腕向前旋转矩阵: \n{right_rot_world}")
     
     # 获取图像尺寸
     image_width = int(2*cx)
@@ -1146,12 +1231,12 @@ def demo_video_generation():
     """演示视频生成功能"""
     # JSON数据文件路径
     # task_name =["basic_fold"]
-    num_frames = 10 #399 # 299
+    num_frames = 299 #399 # 299
     task_name = "clean_cups" #"basic_pick_place" #"add_remove_lid"   # "assemble_disassemble_furniture_bench_lamp"  #"clean_surface" # "clean_cups"
     json_path = f"/home/pine/RoboTwin2/code_painting/{task_name}/0_wrist_data.json"
     
     # 输出视频路径
-    output_video_path = f"code_painting/{task_name}/B_case13_1_robot_animation_{num_frames}frames.mp4"
+    output_video_path = f"code_painting/{task_name}/B_xy_case1_1_robot_animation_{num_frames}frames.mp4"
     
     # 生成前10帧的视频
     generate_robot_video(
