@@ -300,6 +300,7 @@ class RobotRenderer:
         # 获取z轴方向（旋转矩阵的第三列）
         # z_axis = rot_matrix[:, 2]
         # 试一下y轴 0x 1y
+        print("================================== 沿手掌后缩 指尖-》腕部 ========================")
         print("============= rot_matrix =============", rot_matrix)
         z_axis = rot_matrix[:, 1]
         # z_axis = np.array([0, -1, 0])
@@ -319,6 +320,7 @@ class RobotRenderer:
         print(f"调整距离1: {distance * z_axis}")
         print(f"调整距离: {distance * z_axis @ R_y180}")
         print(f"调整后位置: {adjusted_position[:3]}")
+        print("END================================== 沿手掌后缩 指尖-》腕部 ========================")
         
         return adjusted_position
     
@@ -345,10 +347,14 @@ class RobotRenderer:
             left_pos = self.adjust_position_along_z_axis(left_pos, left_end_rot_np)
             right_pos = self.adjust_position_along_z_axis(right_pos, right_end_rot_np)
             
+            print("================================== +基座位置 ==================================")
+            
             # 获取机器人基座位置（如果已经设置过）
             if hasattr(self, '_robot_base_pos'):
                 robot_base_pos = self._robot_base_pos
                 print(f"Adding robot base offset: {robot_base_pos}")
+                print(f"左手腕: {left_pos[:3]}")
+                print(f"右手腕: {right_pos[:3]}")
                 
                 # 将基座坐标加到左右手坐标上
                 left_pos[:3] += robot_base_pos
@@ -1169,12 +1175,6 @@ def demo_usage(frame_idx=0):
     # except Exception as e:
     #     print(f"Error in wrist orientation analysis: {e}")
     
-    # 读取当前帧的左右手末端位姿
-    # 使用三点（拇指尖T、食指尖I、手腕W）计算抓取姿态
-    # 左手
-    # left_thumb_tip = np.array(data["left"]["thumbTip"]["position"][frame_idx], dtype=float)
-    # left_index_tip = np.array(data["left"]["indexFingerTip"]["position"][frame_idx], dtype=float)
-    # left_wrist = np.array(data["left"]["wrists"]["position"][frame_idx], dtype=float)
     
     # 使用新函数计算夹爪位姿
     print("\n=== 使用新函数计算夹爪位姿 ===")
@@ -1415,10 +1415,10 @@ def demo_video_generation():
     # JSON数据文件路径
     # task_name =["basic_fold"]
     num_frames = 299 #399 # 299
-    task_name = "assemble_disassemble_furniture_bench_lamp" 
+    task_name = "clean_cups" #"assemble_disassemble_furniture_bench_lamp" 
     #"basic_pick_place" #"add_remove_lid"   # "assemble_disassemble_furniture_bench_lamp"  
     # #"clean_surface" # "clean_cups"
-    video_id = "2"
+    video_id = "0"
     json_path = f"/home/pine/RoboTwin2/code_painting/{task_name}/{video_id}_wrist_data.json"
     video_path = f"/home/pine/RoboTwin2/code_painting/{task_name}/{task_name}_{video_id}_thumb_simple.mp4"
     
@@ -1466,7 +1466,7 @@ if __name__ == "__main__":
         demo_video_generation()
     elif mode == "3":
         # 单独创建并排视频
-        task_name = "assemble_disassemble_furniture_bench_lamp"
+        task_name = "clean_cups"#"assemble_disassemble_furniture_bench_lamp"
         video_id = "0"
         
         # 让用户输入帧率
