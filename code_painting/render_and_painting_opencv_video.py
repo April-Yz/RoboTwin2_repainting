@@ -307,20 +307,20 @@ class RobotRenderer:
         z_axis = rot_matrix[:, 1]
         # z_axis = np.array([0, -1, 0])
 
-        R_y180 = np.array([[1, 0, 0],
-                        [ 0, 0, -1], # -z 10:10
-                        [ 0, -1, 0]], dtype=float)
+        # R_y180 = np.array([[1, 0, 0],
+        #                 [ 0, 0, -1], # -z 10:10
+        #                 [ 0, -1, 0]], dtype=float)
         # R_y180_right = np.array([[1, 0, 0],
         #                         [0, 0, -1],
         #                         [0, -1, 0]], dtype=float)           
         # 沿z轴方向调整位置
         adjusted_position = position.copy()
-        adjusted_position[:3] += distance * z_axis @ R_y180
+        adjusted_position[:3] += distance * z_axis #@ R_y180
         
         print(f"原始位置: {position[:3]}")
         print(f"Z轴方向: {z_axis}")
         print(f"调整距离1: {distance * z_axis}")
-        print(f"调整距离: {distance * z_axis @ R_y180}")
+        # print(f"调整距离: {distance * z_axis @ R_y180}")
         print(f"调整后位置: {adjusted_position[:3]}")
         print("END================================== 沿手掌后缩 指尖-》腕部 ========================")
         
@@ -589,7 +589,7 @@ class RobotRenderer:
         # 如果需要显示原始JSON坐标差异
         if show_json_distance and original_left_pos is not None and original_right_pos is not None:
             dx, dy, dz, d_total = self.calculate_hand_distance(original_left_pos, original_right_pos)
-            json_text = f"JSON:dz={dz:.3f},  dy={dy:.3f},  dx={dx:.3f}, d={d_total:.3f}"
+            json_text = f"JSON:dx={dx:.3f},  dy={dy:.3f},  dz={dz:.3f},  d={d_total:.3f}"
             
             # 在图像顶部添加文本（在机器人手距离下方）
             font = cv2.FONT_HERSHEY_SIMPLEX
@@ -876,9 +876,9 @@ def generate_robot_video(json_path: str,
 
             # clean cups world_base_pose:  [-0.03613232  1.220203    0.]
             # 假设比人手长1.2倍
-            left_pos_world[:3] *= 1.1
-            right_pos_world[:3] *= 1.1
-            camera_position[:3] *= 1.1
+            left_pos_world[:3] *= 1.0 #1.1
+            right_pos_world[:3] *= 1.0 #1.1
+            camera_position[:3] *= 1.0 #1.1
             print(f"倍数后 世界系左腕位置: {left_pos_world}")
             print(f"倍数后世界系右腕位置: {right_pos_world}")  
             print(f"倍数后相机位置: {camera_position}")
@@ -924,17 +924,24 @@ def generate_robot_video(json_path: str,
             # R_y180_right = np.array([[1, 0, 0],
             #                         [0, 0, -1],
             #                         [0, -1, 0]], dtype=float)    
-            # left_rot_world = R_y180_left @ left_rot_world
-            # right_rot_world = R_y180_right @ right_rot_world
+            R_y180_left = np.array([[0, 0, 1],
+                                    [ 0, 1, 0],
+                                    [ -1, 0, 0]], dtype=float)
+            R_y180_right = np.array([[0, 0, 1],
+                                    [ 0, 1, 0],
+                                    [ -1, 0, 0]], dtype=float)
+            # 左右手位置变换
+            left_rot_world  = R_y180_left @ json_to_robot @ left_rot_world
+            right_rot_world = R_y180_right @ json_to_robot @ right_rot_world
             # 设置手臂朝前的旋转矩阵
             # 朝前意味着末端执行器的Z轴指向正前方（+Y方向）
-            forward_rotation_euler = [np.pi, 0, 0]  # 绕Z轴旋转90度
-            # forward_rotation_euler = [0, np.pi, 0]  # 绕Z轴旋转90度
-            forward_rot_mat = t3d_euler.euler2mat(*forward_rotation_euler, 'sxyz')
-            left_rot_world = forward_rot_mat
-            right_rot_world = forward_rot_mat
-            print(f"世界系左腕向前旋转矩阵: \n{left_rot_world}")
-            print(f"世界系右腕向前旋转矩阵: \n{right_rot_world}")
+            # forward_rotation_euler = [np.pi, 0, 0]  # 绕Z轴旋转90度
+            # # forward_rotation_euler = [0, np.pi, 0]  # 绕Z轴旋转90度
+            # forward_rot_mat = t3d_euler.euler2mat(*forward_rotation_euler, 'sxyz')
+            # left_rot_world = forward_rot_mat
+            # right_rot_world = forward_rot_mat
+            # print(f"世界系左腕向前旋转矩阵: \n{left_rot_world}")
+            # print(f"世界系右腕向前旋转矩阵: \n{right_rot_world}")
             # 只在第一帧设置机器人基座位置
             if frame_idx == 0:
                 renderer.set_robot_base_pose(camera_extrinsics)
@@ -1001,7 +1008,7 @@ def demo_usage(frame_idx=0):
 
     # json_path = "/home/pine/RoboTwin2/code_painting/clean_surface/0_wrist_data.json"
     # json_path = "/home/pine/RoboTwin2/code_painting/clean_cups/0_wrist_data.json"
-    json_path = "/home/pine/RoboTwin2/code_painting/assemble_disassemble_furniture_bench_lamp/0_wrist_data.json"
+    json_path = "/home/pine/RoboTwin2/code_painting/assemble_disassemble_furniture_bench_lamp/2_wrist_data.json"
     
     with open(json_path, "r") as f:
         data = json.load(f)
@@ -1094,72 +1101,72 @@ def demo_usage(frame_idx=0):
     print(f"左手夹爪旋转矩阵:\n{left_rot_world}")
     print(f"右手夹爪旋转矩阵:\n{right_rot_world}")
     
-    # # 旋转矩阵到欧拉角转换
-    # try:
-    #     # 检查输入格式并转换
-    #     if left_rot_world.shape == (3, 3):
-    #         # 如果是旋转矩阵，先转换为四元数
-    #         left_quat = t3d_quat.mat2quat(left_rot_world)
-    #         right_quat = t3d_quat.mat2quat(right_rot_world)
-    #     else:
-    #         # 如果已经是四元数，直接使用
-    #         left_quat = left_rot_world
-    #         right_quat = right_rot_world
+    # 旋转矩阵到欧拉角转换
+    try:
+        # 检查输入格式并转换
+        if left_rot_world.shape == (3, 3):
+            # 如果是旋转矩阵，先转换为四元数
+            left_quat = t3d_quat.mat2quat(left_rot_world)
+            right_quat = t3d_quat.mat2quat(right_rot_world)
+        else:
+            # 如果已经是四元数，直接使用
+            left_quat = left_rot_world
+            right_quat = right_rot_world
             
-    #     # 四元数转欧拉角 (ZYX顺序)
-    #     left_euler = t3d_euler.quat2euler(left_quat, 'rzyx')
-    #     right_euler = t3d_euler.quat2euler(right_quat, 'rzyx')
+        # 四元数转欧拉角 (ZYX顺序)
+        left_euler = t3d_euler.quat2euler(left_quat, 'rzyx')
+        right_euler = t3d_euler.quat2euler(right_quat, 'rzyx')
         
-    #     print(f"\n左腕欧拉角 (度): roll={np.rad2deg(left_euler[0]):.1f}°, pitch={np.rad2deg(left_euler[1]):.1f}°, yaw={np.rad2deg(left_euler[2]):.1f}°")
-    #     print(f"右腕欧拉角 (度): roll={np.rad2deg(right_euler[0]):.1f}°, pitch={np.rad2deg(right_euler[1]):.1f}°, yaw={np.rad2deg(right_euler[2]):.1f}°")
+        print(f"\n左腕欧拉角 (度): roll={np.rad2deg(left_euler[0]):.1f}°, pitch={np.rad2deg(left_euler[1]):.1f}°, yaw={np.rad2deg(left_euler[2]):.1f}°")
+        print(f"右腕欧拉角 (度): roll={np.rad2deg(right_euler[0]):.1f}°, pitch={np.rad2deg(right_euler[1]):.1f}°, yaw={np.rad2deg(right_euler[2]):.1f}°")
         
-    #     # 朝向分析
-    #     print("\n左腕朝向:")
-    #     if abs(left_euler[0]) < 0.1:
-    #         print("  Roll: 基本水平")
-    #     elif left_euler[0] > 0:
-    #         print("  Roll: 向右倾斜")
-    #     else:
-    #         print("  Roll: 向左倾斜")
+        # 朝向分析
+        print("\n左腕朝向:")
+        if abs(left_euler[0]) < 0.1:
+            print("  Roll: 基本水平")
+        elif left_euler[0] > 0:
+            print("  Roll: 向右倾斜")
+        else:
+            print("  Roll: 向左倾斜")
         
-    #     if abs(left_euler[1]) < 0.1:
-    #         print("  Pitch: 基本水平")
-    #     elif left_euler[1] > 0:
-    #         print("  Pitch: 向上倾斜")
-    #     else:
-    #         print("  Pitch: 向下倾斜")
+        if abs(left_euler[1]) < 0.1:
+            print("  Pitch: 基本水平")
+        elif left_euler[1] > 0:
+            print("  Pitch: 向上倾斜")
+        else:
+            print("  Pitch: 向下倾斜")
         
-    #     if abs(left_euler[2]) < 0.1:
-    #         print("  Yaw: 朝前")
-    #     elif left_euler[2] > 0:
-    #         print("  Yaw: 向右偏转")
-    #     else:
-    #         print("  Yaw: 向左偏转")
+        if abs(left_euler[2]) < 0.1:
+            print("  Yaw: 朝前")
+        elif left_euler[2] > 0:
+            print("  Yaw: 向右偏转")
+        else:
+            print("  Yaw: 向左偏转")
         
-    #     print("\n右腕朝向:")
-    #     if abs(right_euler[0]) < 0.1:
-    #         print("  Roll: 基本水平")
-    #     elif right_euler[0] > 0:
-    #         print("  Roll: 向右倾斜")
-    #     else:
-    #         print("  Roll: 向左倾斜")
+        print("\n右腕朝向:")
+        if abs(right_euler[0]) < 0.1:
+            print("  Roll: 基本水平")
+        elif right_euler[0] > 0:
+            print("  Roll: 向右倾斜")
+        else:
+            print("  Roll: 向左倾斜")
         
-    #     if abs(right_euler[1]) < 0.1:
-    #         print("  Pitch: 基本水平")
-    #     elif right_euler[1] > 0:
-    #         print("  Pitch: 向上倾斜")
-    #     else:
-    #         print("  Pitch: 向下倾斜")
+        if abs(right_euler[1]) < 0.1:
+            print("  Pitch: 基本水平")
+        elif right_euler[1] > 0:
+            print("  Pitch: 向上倾斜")
+        else:
+            print("  Pitch: 向下倾斜")
         
-    #     if abs(right_euler[2]) < 0.1:
-    #         print("  Yaw: 朝前")
-    #     elif right_euler[2] > 0:
-    #         print("  Yaw: 向右偏转")
-    #     else:
-    #         print("  Yaw: 向左偏转")
-    #     print("==================\n")
-    # except Exception as e:
-    #     print(f"Error in wrist orientation analysis: {e}")
+        if abs(right_euler[2]) < 0.1:
+            print("  Yaw: 朝前")
+        elif right_euler[2] > 0:
+            print("  Yaw: 向右偏转")
+        else:
+            print("  Yaw: 向左偏转")
+        print("==================\n")
+    except Exception as e:
+        print(f"Error in wrist orientation analysis: {e}")
     
     
     # 使用新函数计算夹爪位姿
@@ -1182,9 +1189,9 @@ def demo_usage(frame_idx=0):
 
     # clean cups world_base_pose:  [-0.03613232  1.220203    0.]
     # 假设比人手长1.2倍
-    left_pos_world[:3] *= 1.1
-    right_pos_world[:3] *= 1.1
-    camera_position[:3] *= 1.1
+    left_pos_world[:3] *= 1.0 #1.1
+    right_pos_world[:3] *= 1.0 #1.1
+    camera_position[:3] *= 1.0 #1.1
     print(f"倍数后 世界系左腕位置: {left_pos_world}")
     print(f"倍数后世界系右腕位置: {right_pos_world}")  
     print(f"倍数后相机位置: {camera_position}")
@@ -1201,41 +1208,41 @@ def demo_usage(frame_idx=0):
     camera_extrinsics = {"position": camera_position.tolist(), "rotation": camera_rotation.tolist()}
     
     print("===============左右手朝向绕Y轴变换180度===============")
-    # 原来的在手腕上
-    # R_y180_left = np.array([[0, -1, 0],
-    #                         [ 0, 0, 1],
-    #                         [ -1, 0, 0]], dtype=float)
+    # # 原来的在手腕上
+    # R_y180_left = np.array([[1, 0, 0],
+    #                         [ 0, 1, 0],
+    #                         [ 0, 0, 1]], dtype=float)
+    # R_y180_right = np.array([[1, 0, 0],
+    #                          [0, 1, 0],
+    #                          [0, 0, 1]], dtype=float)
+
+    # #    预备一下 x=z也可能？
+    # R_y180_left = np.array([[1, 0, 0],
+    #                         [ 0, 0, 1], # -z 10:10
+    #                         [ 0, 1, 0]], dtype=float)
     # R_y180_right = np.array([[0, 1, 0],
-    #                          [0, 0, 1],
-    #                          [1, 0, 0]], dtype=float)
-
-   # 预备一下 x=z也可能？
-    # R_y180_left = np.array([[0, 0, 1],
-    #                         [ 1, 0, 0], # -z 10:10
-    #                         [ 0, -1, 0]], dtype=float)
-    # R_y180_right = np.array([[0, 0, 1],
-    #                         [1, 0, 0],
-    #                         [0, -1, 0]], dtype=float)
+    #                         [0, 0, 1],
+    #                         [1, 0, 0]], dtype=float)
     
-    R_y180_left = np.array([[-1, 0, 0],
-                            [ 0, 0, -1], # -z 10:10
-                            [ 0, -1, 0]], dtype=float)
-    R_y180_right = np.array([[-1, 0, 0],
-                            [0, 0, -1],
-                            [0, -1, 0]], dtype=float)
+    R_y180_left = np.array([[0, 0, 1],
+                            [ 0, 1, 0],
+                            [ -1, 0, 0]], dtype=float)
+    R_y180_right = np.array([[0, 0, 1],
+                            [ 0, 1, 0],
+                            [ -1, 0, 0]], dtype=float)
     # 左右手位置变换
-    left_rot_world  = R_y180_left @ left_rot_world
-    right_rot_world = R_y180_right @ right_rot_world
+    left_rot_world  = R_y180_left @ json_to_robot @ left_rot_world
+    right_rot_world = R_y180_right @ json_to_robot @ right_rot_world
 
-    # 设置手臂朝前的旋转矩阵
-    # 朝前意味着末端执行器的Z轴指向正前方（+Y方向）
-    forward_rotation_euler = [np.pi, 0, 0]  # 绕Z轴旋转90度
-    # forward_rotation_euler = [0, np.pi, 0]  # 绕Z轴旋转90度
-    forward_rot_mat = t3d_euler.euler2mat(*forward_rotation_euler, 'sxyz')
-    left_rot_world = forward_rot_mat
-    right_rot_world = forward_rot_mat
-    print(f"世界系左腕向前旋转矩阵: \n{left_rot_world}")
-    print(f"世界系右腕向前旋转矩阵: \n{right_rot_world}")
+    # # 设置手臂朝前的旋转矩阵
+    # # 朝前意味着末端执行器的Z轴指向正前方（+Y方向）
+    # forward_rotation_euler = [np.pi, 0, 0]  # 绕Z轴旋转90度
+    # # forward_rotation_euler = [0, np.pi, 0]  # 绕Z轴旋转90度
+    # forward_rot_mat = t3d_euler.euler2mat(*forward_rotation_euler, 'sxyz')
+    # left_rot_world = forward_rot_mat
+    # right_rot_world = forward_rot_mat
+    # print(f"世界系左腕向前旋转矩阵: \n{left_rot_world}")
+    # print(f"世界系右腕向前旋转矩阵: \n{right_rot_world}")
     
     # 获取图像尺寸
     image_width = int(2*cx)
@@ -1376,7 +1383,7 @@ def demo_video_generation():
     # JSON数据文件路径
     # task_name =["basic_fold"]
     num_frames = 299 #399 # 299
-    task_name = "assemble_disassemble_furniture_bench_lamp" 
+    task_name = "clean_cups" 
     #"basic_pick_place" #"add_remove_lid"   # "assemble_disassemble_furniture_bench_lamp"  
     # #"clean_surface" # "clean_cups"
     video_id = "0"
