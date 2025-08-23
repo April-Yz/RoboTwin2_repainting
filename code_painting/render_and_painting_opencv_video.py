@@ -105,10 +105,12 @@ class RobotRenderer:
     def _load_robot(self):
         """加载机器人模型"""
         try:
-            robot_urdf_path = "/home/pine/RoboTwin2/assets/embodiments/aloha-agilex/urdf/arx5_description_isaac.urdf"
+            # robot_urdf_path = "/home/pine/RoboTwin2/assets/embodiments/aloha-agilex/urdf/arx5_description_isaac.urdf"
+            robot_urdf_path = "/data1/zjyang/program/third/RoboTwin/assets/embodiments/aloha-agilex/urdf/arx5_description_isaac.urdf"
             
             if os.path.exists(robot_urdf_path):
-                with open("/home/pine/RoboTwin2/robot_config.json", "r") as f:
+                # with open("/home/pine/RoboTwin2/robot_config.json", "r") as f:
+                with open("/data1/zjyang/program/third/RoboTwin/robot_config.json", "r") as f:
                     robot_cfg = json.load(f)
                     
                 self.need_topp = True
@@ -997,9 +999,10 @@ def demo_usage(frame_idx=0):
     import numpy as np
     import json
 
-    json_path = "/home/pine/RoboTwin2/code_painting/clean_surface/0_wrist_data.json"
+    # json_path = "/home/pine/RoboTwin2/code_painting/clean_surface/0_wrist_data.json"
     # json_path = "/home/pine/RoboTwin2/code_painting/clean_cups/0_wrist_data.json"
     # json_path = "/home/pine/RoboTwin2/code_painting/assemble_disassemble_furniture_bench_lamp/0_wrist_data.json"
+    json_path = "/data1/zjyang/program/egodex/egodex_stored/clean_surface/0_wrist_data.json"
     
     with open(json_path, "r") as f:
         data = json.load(f)
@@ -1373,14 +1376,19 @@ def demo_video_generation():
     #"basic_pick_place" #"add_remove_lid"   # "assemble_disassemble_furniture_bench_lamp"  
     # #"clean_surface" # "clean_cups"
     video_id = "0"
-    json_path = f"/home/pine/RoboTwin2/code_painting/{task_name}/{video_id}_wrist_data.json"
-    video_path = f"/home/pine/RoboTwin2/code_painting/{task_name}/{task_name}_{video_id}_thumb_simple.mp4"
+    # json_path = f"/home/pine/RoboTwin2/code_painting/{task_name}/{video_id}_wrist_data.json"
+    # video_path = f"/home/pine/RoboTwin2/code_painting/{task_name}/{task_name}_{video_id}_thumb_simple.mp4"
+    # "/data1/zjyang/program/egodex/egodex_stored/clean_surface/0_wrist_data.json"
+    json_path = f"/data1/zjyang/program/egodex/egodex_stored/{task_name}/{video_id}_wrist_data.json"
+    video_path = f"/data1/zjyang/program/egodex/traj_formal/{task_name}/{task_name}_{video_id}_thumb_simple.mp4"
     
     fps = 5  # 默认值
 
     
     # 输出视频路径
     output_video_path = f"code_painting/{task_name}/{video_id}_xz_forward_{num_frames}frames_{fps}fps.mp4"
+    if not os.path.exists(join(output_video_path,"..")):
+        os.makedirs(join(output_video_path,".."))
     
     # 生成机器人视频
     generate_robot_video(
@@ -1427,7 +1435,8 @@ if __name__ == "__main__":
 
         
         # 原始视频路径
-        original_video = f"/home/pine/RoboTwin2/code_painting/{task_name}/{video_id}.mp4"
+        # original_video = f"/home/pine/RoboTwin2/code_painting/{task_name}/{video_id}.mp4"
+        original_video = f"/data1/zjyang/program/egodex/traj_formal/{task_name}/{task_name}_{video_id}_thumb_simple.mp4"
         # 生成的机器人视频路径
         generated_video = f"code_painting/{task_name}/{video_id}_xz_forward_{num_frames}frames_{fps}fps.mp4"
         # 输出并排视频路径
