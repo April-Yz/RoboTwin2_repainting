@@ -359,6 +359,12 @@ class RobotRenderer:
                 # 将基座坐标加到左右手坐标上
                 left_pos[:3] += robot_base_pos
                 right_pos[:3] += robot_base_pos
+                # print("这一步感觉可以不加基座位置")
+                # yz还需要对齐加一次（有负号计算的是相对位置） 仅y(z是底座高度)
+                # left_pos[1:3] += robot_base_pos[1:3]
+                left_pos[1] += robot_base_pos[1]
+                right_pos[1] += robot_base_pos[1]
+
                 
                 print(f"左手腕+基座位置: {left_pos[:3]}")
                 print(f"右手腕+基座位置: {right_pos[:3]}")
@@ -849,12 +855,6 @@ def generate_robot_video(json_path: str,
             print(f"计算的左手夹爪位置: {left_pos_world}")
             print(f"计算的右手夹爪位置: {right_pos_world}")
             
-            # # 坐标系变换
-            # xy_to_yx = np.array([
-            #     [0,  -1,  0],
-            #     [-1,  0,  0],
-            #     [0,  0,  1]
-            # ])     
             xy_to_yx = np.array([
                 [0,  0,  1],
                 [0,  -1,  0],
@@ -868,33 +868,18 @@ def generate_robot_video(json_path: str,
             # left_rot_world = left_rot_world @ xy_to_yx
             # right_rot_world = right_rot_world @ xy_to_yx
             
-            # # 应用缩放因子
-            # left_pos_world[:3] *= 1.1
-            # right_pos_world[:3] *= 1.1
-            # print(f"倍数后 世界系左腕位置: {left_pos_world}")
-            # print(f"倍数后世界系右腕位置: {right_pos_world}")        
-            # left_pos_world[0] += 1.6 #1.55#1.6 #1.3 # 本来就是[-0.8,-1.2]左右
-            # right_pos_world[0] += 1.6 # 1.55 #1.6 #1.3 
-            # # left_pos_world[1] -= 0.15 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
-            # left_pos_world[1] -= 0.1 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
-            # # right_pos_world[1] -=0.15 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
-            # right_pos_world[1] -=0.3 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
-            # left_pos_world[2] += 1.55  # 1.5
-            # right_pos_world[2] += 1.55 #1.5  # 1.2 
-            
-            
-            
-            
+            # clean cups world_base_pose:  [-0.03613232  1.220203    0.]
+            # 假设比人手长1.2倍
             left_pos_world[:3] *= 1.1
             right_pos_world[:3] *= 1.1
             print(f"倍数后 世界系左腕位置: {left_pos_world}")
             print(f"倍数后世界系右腕位置: {right_pos_world}")        
             left_pos_world[0] -=0.1 #+= 1.6 #1.55#1.6 #1.3 # 本来就是[-0.8,-1.2]左右
             right_pos_world[0] -= 0.1 #+= 1.6 # 1.55 #1.6 #1.3 
-            left_pos_world[1] +=1.0 # -= 0.2 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
-            right_pos_world[1] +=1.0 #-=0.2 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
-            left_pos_world[2] += 1.3  # 1.5
-            right_pos_world[2] += 1.3 #1.5  # 1.2     
+            left_pos_world[1]  -= 0.1 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
+            right_pos_world[1] -=0.2 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
+            left_pos_world[2] += camera_position[2]  # 1.5
+            right_pos_world[2] += camera_position[2] #1.5  # 1.2    
             
     
     
@@ -1013,8 +998,8 @@ def demo_usage(frame_idx=0):
     import json
 
     # json_path = "/home/pine/RoboTwin2/code_painting/clean_surface/0_wrist_data.json"
-    # json_path = "/home/pine/RoboTwin2/code_painting/clean_cups/0_wrist_data.json"
-    json_path = "/home/pine/RoboTwin2/code_painting/assemble_disassemble_furniture_bench_lamp/0_wrist_data.json"
+    json_path = "/home/pine/RoboTwin2/code_painting/clean_cups/0_wrist_data.json"
+    # json_path = "/home/pine/RoboTwin2/code_painting/assemble_disassemble_furniture_bench_lamp/0_wrist_data.json"
     
     with open(json_path, "r") as f:
         data = json.load(f)
@@ -1180,16 +1165,7 @@ def demo_usage(frame_idx=0):
     print("\n=== 使用新函数计算夹爪位姿 ===")
     print(f"世界系左腕初始位置: {left_pos_world}")
     print(f"世界系右腕初始位置: {right_pos_world}")
-    # xy_to_yx = np.array([
-    #     [0,  -1,  0],
-    #     [-1,  0,  0],
-    #     [0,  0,  1]
-    # ])     
-    # xy_to_yx = np.array([
-    #     [-1,  0,  0],
-    #     [0,  -1,  0],
-    #     [0,  0,  1]
-    # ])  
+
     xy_to_yx = np.array([
         [0,  0,  1],
         [0,  -1,  0],
@@ -1199,28 +1175,6 @@ def demo_usage(frame_idx=0):
     right_pos_world = right_pos_world @ xy_to_yx
     print(f"转换后世界系左腕位置: {left_pos_world}")
     print(f"转换后世界系右腕位置: {right_pos_world}")    
-    # left_pos_world[0] += 1.55
-    # right_pos_world[0] += 1.55    
-    # left_pos_world[1] += 0.95
-    # right_pos_world[1] += 0.9              
-    # left_pos_world[2] += 1.6
-    # right_pos_world[2] += 1.6
-    
-    # # xy可能反了
-    # # clean cups world_base_pose:  [-0.03613232  1.220203    0.]
-    # # 假设比人手长1.2倍
-    # left_pos_world[:3] *= 1.1
-    # right_pos_world[:3] *= 1.1
-    # print(f"倍数后 世界系左腕位置: {left_pos_world}")
-    # print(f"倍数后世界系右腕位置: {right_pos_world}")        
-    # left_pos_world[0] += 1.6 #1.55#1.6 #1.3 # 本来就是[-0.8,-1.2]左右
-    # right_pos_world[0] += 1.6 # 1.55 #1.6 #1.3 
-    # # left_pos_world[1] -= 0.2 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
-    # left_pos_world[1] -= 0.1 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
-    # # right_pos_world[1] -=0.2 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
-    # right_pos_world[1] -=0.3 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
-    # left_pos_world[2] += 1.55  # 1.5
-    # right_pos_world[2] += 1.55 #1.5  # 1.2    
 
     # clean cups world_base_pose:  [-0.03613232  1.220203    0.]
     # 假设比人手长1.2倍
@@ -1230,10 +1184,10 @@ def demo_usage(frame_idx=0):
     print(f"倍数后世界系右腕位置: {right_pos_world}")        
     left_pos_world[0] -=0.1 #+= 1.6 #1.55#1.6 #1.3 # 本来就是[-0.8,-1.2]左右
     right_pos_world[0] -= 0.1 #+= 1.6 # 1.55 #1.6 #1.3 
-    left_pos_world[1] +=1.0 # -= 0.2 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
-    right_pos_world[1] +=1.0 #-=0.2 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
-    left_pos_world[2] += 1.3  # 1.5
-    right_pos_world[2] += 1.3 #1.5  # 1.2           
+    left_pos_world[1]  -= 0.1 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
+    right_pos_world[1] -=0.2 #+=  # 0.5 # 0.8(clean cupd 0.8 感觉才是最符合实际的) # -=0.15
+    left_pos_world[2] += camera_position[2]  # 1.5
+    right_pos_world[2] += camera_position[2] #1.5  # 1.2           
     
     print(f"相机位置: {camera_position}")
     print(f"+-后世界系左腕位置: {left_pos_world}")
