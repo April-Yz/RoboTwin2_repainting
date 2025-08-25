@@ -1,4 +1,3 @@
-# 反向选择忘记在inputvideo选择了，而是选择在targetvideo选
 import torch
 import numpy as np
 import cv2
@@ -557,7 +556,7 @@ if __name__ == "__main__":
     video_rm_w_mask_p = output_dir / f"removed_w_mask_{video_name}.mp4"
     video_w_mask_p = output_dir / f"w_mask_{video_name}.mp4"
     video_w_box_p = output_dir / f"w_box_{video_name}.mp4"
-    video_target_masked_p = output_dir / f"target_masked_{video_name}.mp4"
+    video_target_masked_p = output_dir / f"target_with_original_{video_name}.mp4"
     frame_mask_dir.mkdir(exist_ok=True, parents=True)
 
     # load raw video or raw frames
@@ -612,55 +611,77 @@ if __name__ == "__main__":
             frame_ps, 0, point_coords, point_labels, key_frame_mask_idx,
             dilate_kernel_size
         )
-    # Process inverted mask if needed
+    # 保存原始mask
+    original_masks = [mask.copy() for mask in all_mask]
+    
+    # 如果需要反转mask
     if args.invert_mask:
         print("Inverting masks...")
         all_mask = [1 - mask for mask in all_mask]  # Invert mask (0->1, 1->0)
     
-    # Visual removed results
+    # 保存inpaint结果
+    print("Saving inpainted results...")
     iio.mimwrite(video_rm_w_mask_p, all_frame_rm_w_mask, fps=fps)
 
-    # Visual mask
-    print("Saving masks ...")
+    # 保存mask
+    print("Saving masks...")
     all_mask_uint8 = [np.uint8(mask * 255) for mask in all_mask]
     for i in range(len(all_mask_uint8)):
         mask_p = frame_mask_dir / f"{i:0>6}.jpg"
         iio.imwrite(mask_p, all_mask_uint8[i])
     iio.mimwrite(video_mask_p, all_mask_uint8, fps=fps)
     
-    # Visual video with mask
-    print("Saving video with mask ...")
+    # 保存带mask的视频
+    print("Saving video with mask...")
     tmp = []
     for i in range(len(all_mask)):
         tmp.append(show_img_with_mask(all_frame[i], all_mask[i]))
     iio.mimwrite(video_w_mask_p, tmp, fps=fps)
     
+    # 保存带边界框的视频
     tmp = []
-    # Visual video with box
-    print("Saving video with box ...")
+    print("Saving video with box...")
     for i in range(len(all_box)):
         tmp.append(show_img_with_box(all_frame[i], all_box[i]))
     iio.mimwrite(video_w_box_p, tmp, fps=fps)
     
-    # Apply mask to target video if available
+    # 创建反向扣选的原视频（保留mask之外的区域）
+    print("Creating inverse masked original video...")
+    inverse_masked_original = []
+    for i in range(len(all_frame)):
+        # 使用反转的mask（无论用户是否选择了反转）
+        # 我们总是想要保留原视频中mask之外的区域
+        inverted_mask = 1 - original_masks[i]
+        mask_3ch = np.stack([inverted_mask] * 3, axis=2)
+        masked_frame = all_frame[i] * mask_3ch
+        inverse_masked_original.append(masked_frame.astype(np.uint8))
+    
+    # 如果有目标视频，将反向扣选的原视频应用到目标视频上
     if target_frames is not None:
-        print("Applying masks to target video...")
-        # Ensure frame count matches
-        min_frames = min(len(target_frames), len(all_mask))
+        print("Applying inverse masked original to target video...")
+        # 确保帧数匹配
+        min_frames = min(len(target_frames), len(all_frame))
         target_masked_frames = []
         
         for i in range(min_frames):
-            # Apply mask to target video frame
-            # 调整mask尺寸以匹配目标视频帧
+            # 获取目标视频帧的尺寸
             target_h, target_w = target_frames[i].shape[:2]
-            mask_resized = cv2.resize(all_mask[i], (target_w, target_h), 
-                                      interpolation=cv2.INTER_NEAREST)
-            # Create a 3-channel mask
-            mask_3ch = np.stack([mask_resized] * 3, axis=2)
-            # Apply mask to target frame
-            masked_frame = target_frames[i] * mask_3ch
-            target_masked_frames.append(masked_frame.astype(np.uint8))
+            # 调整原始视频帧和mask尺寸以匹配目标视频帧
+            orig_frame_resized = cv2.resize(inverse_masked_original[i], (target_w, target_h))
+            
+            # 将反向扣选的原视频帧应用到目标视频帧上
+            # 先创建目标视频的副本
+            target_frame = target_frames[i].copy()
+            
+            # 找出原视频中非零区域（即mask之外的区域）
+            non_zero_mask = (orig_frame_resized > 0).any(axis=2)
+            non_zero_mask_3ch = np.stack([non_zero_mask] * 3, axis=2)
+            
+            # 在目标视频中，用原视频的非零区域替换对应位置
+            target_frame[non_zero_mask_3ch] = orig_frame_resized[non_zero_mask_3ch]
+            
+            target_masked_frames.append(target_frame.astype(np.uint8))
         
-        # Save masked target video
+        # 保存应用了反向扣选原视频的目标视频
         iio.mimwrite(video_target_masked_p, target_masked_frames, fps=fps)
-        print(f"Target masked video saved to {video_target_masked_p}")
+        print(f"Target video with inverse masked original saved to {video_target_masked_p}")
