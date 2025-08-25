@@ -27,6 +27,7 @@ class RobotRenderer:
                  fovy_deg=90.0,
                  ground_height=0.0,
                  world_z_offset=0.0,
+                 camera_x_offset=0.2,
                  arms_z_offset=0.0,
                  debug_minimal_alignment=False,
                  debug_zero_rotation=False
@@ -44,6 +45,7 @@ class RobotRenderer:
         # 地面高度与世界Z偏移
         self.ground_height = float(ground_height)
         self.world_z_offset = float(world_z_offset)
+        self.camera_x_offset = float(camera_x_offset)
         self.arms_z_offset = float(arms_z_offset)
         self.debug_minimal_alignment = bool(debug_minimal_alignment)
         self.debug_zero_rotation = bool(debug_zero_rotation)
@@ -272,6 +274,7 @@ class RobotRenderer:
         cam_pos_shifted = cam_pos.copy()
         # cam_pos_shifted[0] += 0.25
         cam_pos_shifted[2] += self.world_z_offset
+        cam_pos_shifted[0] += self.camera_x_offset
         
         # 使用转换函数设置相机姿态
         camera_pose = self._opencv_to_sapien_pose(cam_pos_shifted, rotation_matrix)
