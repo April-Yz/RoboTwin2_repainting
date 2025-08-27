@@ -27,7 +27,7 @@ class RobotRenderer:
                  fovy_deg=90.0,
                  ground_height=0.0,
                  world_z_offset=0.0,
-                 camera_x_offset=-0.2,
+                 camera_x_offset=0.2,
                  arms_z_offset=0.0,
                  debug_minimal_alignment=False,
                  debug_zero_rotation=False
@@ -769,8 +769,7 @@ def generate_robot_video(json_path: str,
 
     # 检查可用帧数
     available_frames = len(data["camera"]["transforms"])
-    actual_frames = available_frames # min(num_frames, available_frames)
-    print(f"总共可用帧数: {available_frames}, 将渲染前 {actual_frames} 帧")
+    actual_frames = min(num_frames, available_frames)
 
     # 使用固定相机内参矩阵
     camera_intrinsics = np.array([
@@ -778,7 +777,6 @@ def generate_robot_video(json_path: str,
         [0.0, 736.6339111328125, 540.0],
         [0.0, 0.0, 1.0]
     ], dtype=float)
-    print(f"使用固定相机内参矩阵:\n{camera_intrinsics}")
 
     # 从内参矩阵提取焦距和主点
     fy = camera_intrinsics[1, 1]
@@ -789,7 +787,6 @@ def generate_robot_video(json_path: str,
     image_height = data["camera"].get("height", 1080)
     fovy_rad = 2 * np.arctan(image_height / (2 * fy))
     fovy_deg = np.rad2deg(fovy_rad)
-    print(f"从固定内参计算的视场角: {fovy_deg:.2f}°")
     
     # 获取图像尺寸
     image_width = int(2*cx)
@@ -813,8 +810,6 @@ def generate_robot_video(json_path: str,
     try:
         # 处理每一帧
         for frame_idx in range(actual_frames):
-            print(f"\n=== 处理第 {frame_idx + 1}/{actual_frames} 帧 ===")
-            
             # 读取当前帧的相机外参
             T_cv = np.array(data["camera"]["transforms"][frame_idx], dtype=float)
             camera_position = T_cv[:3, 3]
@@ -855,15 +850,6 @@ def generate_robot_video(json_path: str,
                 left_thumb_tip, left_index_tip, left_index_joint)
             right_pos_world, right_rot_world = calculate_gripper_pose(
                 right_thumb_tip, right_index_tip, right_index_joint)
-            
-            print(f"计算的左手夹爪位置: {left_pos_world}")
-            print(f"计算的右手夹爪位置: {right_pos_world}")
-            
-            # 使用新函数计算夹爪位姿
-            print("\n=== 使用新函数计算夹爪位姿 ===")
-            print(f"世界系左腕初始位置: {left_pos_world}")
-            print(f"世界系右腕初始位置: {right_pos_world}")
-            print(f"相机初始位置: {camera_position}")
 
             json_to_robot = np.array([
                 [0,  -1,  0],
@@ -873,9 +859,6 @@ def generate_robot_video(json_path: str,
             left_pos_world = left_pos_world @ json_to_robot
             right_pos_world = right_pos_world @ json_to_robot
             camera_position = camera_position @ json_to_robot
-            print(f"转换后世界系左腕位置: {left_pos_world}")
-            print(f"转换后世界系右腕位置: {right_pos_world}")    
-            print(f"转换后相机位置: {camera_position}")
 
             # clean cups world_base_pose:  [-0.03613232  1.220203    0.]
             # 假设比人手长1.2倍
@@ -887,17 +870,8 @@ def generate_robot_video(json_path: str,
             left_pos_world[2] -= 0.2
             right_pos_world[2] -= 0.2
             camera_position[2] -= 0.2
-            print(f"倍数后 世界系左腕位置: {left_pos_world}")
-            print(f"倍数后世界系右腕位置: {right_pos_world}")  
-            print(f"倍数后相机位置: {camera_position}")
 
             camera_extrinsics = {"position": camera_position.tolist(), "rotation": camera_rotation.tolist()}
-            
-
-                     
-            print(f"Frame {frame_idx}: 相机位置: {camera_position}")
-            print(f"Frame {frame_idx}: 左腕位置: {left_pos_world}")
-            print(f"Frame {frame_idx}: 右腕位置: {right_pos_world}")
             
             
             R_y180_left = np.array([[0, 0, 1],
@@ -966,8 +940,7 @@ def generate_robot_video(json_path: str,
             # cv2.imwrite(frame_path, bgr_image)
             # print(f"Frame {frame_idx} saved to {frame_path}")
         
-        print(f"\n视频生成完成！保存到: {output_video_path}")
-        print(f"视频参数: {actual_frames}帧, {fps}fps, 分辨率{image_width}x{image_height}")
+        print(f"视频生成完成: {output_video_path} ({actual_frames}帧, {fps}fps, {image_width}x{image_height})")
         
     except Exception as e:
         print(f"视频生成过程中出现错误: {e}")
@@ -999,7 +972,6 @@ def demo_usage(frame_idx=0):
         [0.0, 736.6339111328125, 540.0],
         [0.0, 0.0, 1.0]
     ], dtype=float)
-    print(f"使用固定相机内参矩阵:\n{camera_intrinsics}")
 
     # 从内参矩阵提取焦距和主点
     fy = camera_intrinsics[1, 1]
@@ -1010,11 +982,9 @@ def demo_usage(frame_idx=0):
     image_height = data["camera"].get("height", 1080)
     fovy_rad = 2 * np.arctan(image_height / (2 * fy))
     fovy_deg = np.rad2deg(fovy_rad)
-    print(f"从固定内参计算的视场角: {fovy_deg:.2f}°")
 
     # 读取指定帧相机外参
     T_cv = np.array(data["camera"]["transforms"][frame_idx], dtype=float)
-    print(f"原始相机外参矩阵 T_cv (第{frame_idx}帧):\n{T_cv}")
 
     # 提取相机位置和旋转
     camera_position = T_cv[:3, 3]
@@ -1029,10 +999,6 @@ def demo_usage(frame_idx=0):
 
     # 转换旋转矩阵
     camera_rotation = camera_rotation @ opencv_to_sapien    
-    
-    
-    print(f"OpenCV相机外参矩阵位置:\n{camera_position}")
-    print(f"OpenCV相机外参矩阵旋转:\n{camera_rotation}")
     
     # 调整相机位置，提高高度
     # camera_position[2] += 1.3
@@ -1058,13 +1024,6 @@ def demo_usage(frame_idx=0):
     
     left_indexFingerIntermediateTip_pos_world = np.array(data["left"]["indexFingerIntermediateTip"]["position"][frame_idx], dtype=float)
     right_indexFingerIntermediateTip_pos_world = np.array(data["right"]["indexFingerIntermediateTip"]["position"][frame_idx], dtype=float)
-    # 分析手腕朝向和欧拉角
-    print("\n=== 手腕朝向分析 ===")
-    print(f"世界系左腕初始位置: {left_wrists_pos_world}")
-    print(f"世界系右腕初始位置: {right_wrists_pos_world}")
-    print(f"世界系左腕初始四元数: {left_wrists_rot_world}")
-    print(f"世界系右腕初始四元数: {right_wrists_rot_world}")
-    
     # 计算夹爪位置和旋转矩阵
     left_pos_world, left_rot_world = calculate_gripper_pose(
         left_thumbTip_pos_world, 
@@ -1074,12 +1033,6 @@ def demo_usage(frame_idx=0):
         right_thumbTip_pos_world, 
         right_indexFingerTip_pos_world, 
         right_indexFingerIntermediateTip_pos_world)
-    
-    print("\n=== 夹爪位姿分析 ===")
-    print(f"左手夹爪位置: {left_pos_world}")
-    print(f"右手夹爪位置: {right_pos_world}")
-    print(f"左手夹爪旋转矩阵:\n{left_rot_world}")
-    print(f"右手夹爪旋转矩阵:\n{right_rot_world}")
     
     # 旋转矩阵到欧拉角转换
     try:
@@ -1096,65 +1049,9 @@ def demo_usage(frame_idx=0):
         # 四元数转欧拉角 (ZYX顺序)
         left_euler = t3d_euler.quat2euler(left_quat, 'rzyx')
         right_euler = t3d_euler.quat2euler(right_quat, 'rzyx')
-        
-        print(f"\n左腕欧拉角 (度): roll={np.rad2deg(left_euler[0]):.1f}°, pitch={np.rad2deg(left_euler[1]):.1f}°, yaw={np.rad2deg(left_euler[2]):.1f}°")
-        print(f"右腕欧拉角 (度): roll={np.rad2deg(right_euler[0]):.1f}°, pitch={np.rad2deg(right_euler[1]):.1f}°, yaw={np.rad2deg(right_euler[2]):.1f}°")
-        
-        # 朝向分析
-        print("\n左腕朝向:")
-        if abs(left_euler[0]) < 0.1:
-            print("  Roll: 基本水平")
-        elif left_euler[0] > 0:
-            print("  Roll: 向右倾斜")
-        else:
-            print("  Roll: 向左倾斜")
-        
-        if abs(left_euler[1]) < 0.1:
-            print("  Pitch: 基本水平")
-        elif left_euler[1] > 0:
-            print("  Pitch: 向上倾斜")
-        else:
-            print("  Pitch: 向下倾斜")
-        
-        if abs(left_euler[2]) < 0.1:
-            print("  Yaw: 朝前")
-        elif left_euler[2] > 0:
-            print("  Yaw: 向右偏转")
-        else:
-            print("  Yaw: 向左偏转")
-        
-        print("\n右腕朝向:")
-        if abs(right_euler[0]) < 0.1:
-            print("  Roll: 基本水平")
-        elif right_euler[0] > 0:
-            print("  Roll: 向右倾斜")
-        else:
-            print("  Roll: 向左倾斜")
-        
-        if abs(right_euler[1]) < 0.1:
-            print("  Pitch: 基本水平")
-        elif right_euler[1] > 0:
-            print("  Pitch: 向上倾斜")
-        else:
-            print("  Pitch: 向下倾斜")
-        
-        if abs(right_euler[2]) < 0.1:
-            print("  Yaw: 朝前")
-        elif right_euler[2] > 0:
-            print("  Yaw: 向右偏转")
-        else:
-            print("  Yaw: 向左偏转")
-        print("==================\n")
-    except Exception as e:
-        print(f"Error in wrist orientation analysis: {e}")
-    
-    
+    except Exception:
+        pass
     # 使用新函数计算夹爪位姿
-    print("\n=== 使用新函数计算夹爪位姿 ===")
-    print(f"世界系左腕初始位置: {left_pos_world}")
-    print(f"世界系右腕初始位置: {right_pos_world}")
-    print(f"相机初始位置: {camera_position}")
-
     json_to_robot = np.array([
         [0,  -1,  0],
         [0,  0,  1],
@@ -1163,18 +1060,12 @@ def demo_usage(frame_idx=0):
     left_pos_world = left_pos_world @ json_to_robot
     right_pos_world = right_pos_world @ json_to_robot
     camera_position = camera_position @ json_to_robot
-    print(f"转换后世界系左腕位置: {left_pos_world}")
-    print(f"转换后世界系右腕位置: {right_pos_world}")    
-    print(f"转换后相机位置: {camera_position}")
 
     # clean cups world_base_pose:  [-0.03613232  1.220203    0.]
     # 假设比人手长1.2倍
     left_pos_world[:3] *= 1.0 #1.1
     right_pos_world[:3] *= 1.0 #1.1
     camera_position[:3] *= 1.0 #1.1
-    print(f"倍数后 世界系左腕位置: {left_pos_world}")
-    print(f"倍数后世界系右腕位置: {right_pos_world}")  
-    print(f"倍数后相机位置: {camera_position}")
     # left_pos_world[0] -=0.1 #+=0.05 #+= 1.6 #1.55#1.6 #1.3 # 本来就是[-0.8,-1.2]左右
     # right_pos_world[0] -= 0.1 #+= 1.6 # 1.55 #1.6 #1.3 
     # left_pos_world[1]  -= 0.25 #+=  #0.5 # (clean surface 0.5) # 0.8  (clean cupd的深度0.8->1.14) # +=0.15
@@ -1182,12 +1073,7 @@ def demo_usage(frame_idx=0):
     # left_pos_world[2] += camera_position[2]  # 1.5
     # right_pos_world[2] += camera_position[2] #1.5  # 1.2           
     
-    print(f"相机位置: {camera_position}")
-    print(f"+-后世界系左腕位置: {left_pos_world}")
-    print(f"+-后世界系右腕位置: {right_pos_world}")
     camera_extrinsics = {"position": camera_position.tolist(), "rotation": camera_rotation.tolist()}
-    
-    print("===============左右手朝向绕Y轴变换180度===============")
     # # 原来的在手腕上
     # R_y180_left = np.array([[1, 0, 0],
     #                         [ 0, 1, 0],
@@ -1255,156 +1141,155 @@ def demo_usage(frame_idx=0):
         # 保存图像
         renderer.save_image(rgb_image, f"code_painting/robot_render_result_frame_{frame_idx}.png")
         renderer.render_and_save(head_path=f"code_painting/robot_render_result_frame_{frame_idx}_save.png")
-        print(f"渲染结果已保存到 robot_render_result_frame_{frame_idx}.png")
-        
         # 显示viewer
         if renderer.enable_viewer:
-            print("Press Ctrl+C to exit viewer...")
             try:
                 while True:
                     renderer.show_viewer()
             except KeyboardInterrupt:
-                print("Exiting...")
+                pass
         
     finally:
         renderer.close()
     
-    print("Rendering complete.")
+    pass
 
 
+# 移除并排视频功能
 def create_side_by_side_video(original_video_path: str, generated_video_path: str, output_path: str, fps: int = 30):
     """
-    创建原始视频和生成视频并排的对比视频
-    
-    Args:
-        original_video_path: 原始视频路径
-        generated_video_path: 生成的机器人视频路径
-        output_path: 输出并排视频路径
-        fps: 输出视频的帧率
+    此功能已被移除
     """
-    # 打开原始视频和生成的视频
-    cap_original = cv2.VideoCapture(original_video_path)
-    cap_generated = cv2.VideoCapture(generated_video_path)
-    
-    # 检查视频是否打开成功
-    if not cap_original.isOpened() or not cap_generated.isOpened():
-        print(f"Error: 无法打开视频文件")
-        if not cap_original.isOpened():
-            print(f"  - 原始视频文件不存在或损坏: {original_video_path}")
-        if not cap_generated.isOpened():
-            print(f"  - 生成的视频文件不存在或损坏: {generated_video_path}")
+    print("并排视频功能已被移除")
         return
     
-    # 获取视频尺寸和帧数
-    width_orig = int(cap_original.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height_orig = int(cap_original.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    width_gen = int(cap_generated.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height_gen = int(cap_generated.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    frame_count_orig = int(cap_original.get(cv2.CAP_PROP_FRAME_COUNT))
-    frame_count_gen = int(cap_generated.get(cv2.CAP_PROP_FRAME_COUNT))
-    
-    print(f"原始视频: {width_orig}x{height_orig}, {frame_count_orig} 帧")
-    print(f"生成视频: {width_gen}x{height_gen}, {frame_count_gen} 帧")
-    
-    # 计算目标尺寸
-    target_height = max(height_orig, height_gen)
-    combined_width = width_orig + width_gen
-    
-    # 创建视频写入器
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(output_path, fourcc, fps, (combined_width, target_height))
-    
-    # 计算处理的帧数
-    frame_count = min(frame_count_orig, frame_count_gen)
-    
-    print(f"开始创建并排视频，总共 {frame_count} 帧...")
-    
-    # 处理每一帧
-    for i in range(frame_count):
-        # 读取原始视频帧
-        ret_orig, frame_orig = cap_original.read()
-        if not ret_orig:
-            break
-        
-        # 读取生成的视频帧
-        ret_gen, frame_gen = cap_generated.read()
-        if not ret_gen:
-            break
-        
-        # 调整尺寸
-        if height_orig != target_height:
-            frame_orig = cv2.resize(frame_orig, (width_orig, target_height))
-        if height_gen != target_height:
-            frame_gen = cv2.resize(frame_gen, (width_gen, target_height))
-        
-        # 创建并排帧
-        combined_frame = np.hstack((frame_orig, frame_gen))
-        
-        # 添加帧号信息
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        cv2.putText(combined_frame, f"Frame: {i+1}/{frame_count}", (10, 30), font, 1, (255, 255, 255), 2, cv2.LINE_AA)
-        
-        # 写入帧
-        out.write(combined_frame)
-        
-        # 每10帧显示一次进度
-        if i % 10 == 0:
-            print(f"Processing: {i+1}/{frame_count} frames ({(i+1)/frame_count*100:.1f}%)")
-    
-    # 释放资源
-    cap_original.release()
-    cap_generated.release()
-    out.release()
-    
-    print(f"并排视频创建完成，保存到: {output_path}")
-
 def demo_video_generation():
     """演示视频生成功能"""
-    # JSON数据文件路径
-    # task_name =["basic_fold"]
-    num_frames = 299 #399 # 299
-    task_name = "clean_cups" 
-    #"basic_pick_place" #"add_remove_lid"   # "assemble_disassemble_furniture_bench_lamp"  
-    # #"clean_surface" # "clean_cups"
-    video_id = "0"
-    # json_path = f"/home/pine/RoboTwin2/code_painting/{task_name}/{video_id}_wrist_data.json"
-    # video_path = f"/home/pine/RoboTwin2/code_painting/{task_name}/{task_name}_{video_id}_thumb_simple.mp4"
-
-    json_path = f"/data1/zjyang/program/egodex/egodex_stored/{task_name}/{video_id}_wrist_data.json"
-    video_path = f"/data1/zjyang/program/egodex/traj_formal/{task_name}_{video_id}_thumb_simple.mp4"
-     
-    fps = 5  # 默认值
-
+    # 基础路径
+    base_path = f"/data1/zjyang/program/egodex/egodex_stored/"
+    
+    # 询问是否批量生成
+    batch_mode = input("是否批量生成视频？(y/n): ").strip().lower() == 'y'
+    
+    if batch_mode:
+        # 获取base_path下的所有任务文件夹
+        try:
+            tasks = [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d))]
+            if not tasks:
+                print(f"在 {base_path} 中未找到任何任务文件夹")
+                return
+            print(f"找到以下任务: {tasks}")
+        except Exception as e:
+            print(f"读取任务文件夹时出错: {e}")
+            return
+            
+        # 设置帧率
+        fps = int(input("请输入视频帧率 (默认5): ") or "5")
+        
+        # 处理每个任务
+        for task_name in tasks:
+            task_dir = os.path.join(base_path, task_name)
+            video_ids = set()
+            
+            # 查找所有wrist_data.json文件以确定video_id
+            for file in os.listdir(task_dir):
+                if file.endswith("_wrist_data.json"):
+                    video_id = file.split("_")[0]
+                    video_ids.add(video_id)
+            
+            if not video_ids:
+                print(f"任务 {task_name} 中未找到wrist_data.json文件，跳过")
+                continue
+                
+            print(f"处理任务 {task_name}，找到video_ids: {video_ids}")
+            
+            # 处理每个video_id
+            for video_id in sorted(video_ids):
+                json_path = f"{base_path}/{task_name}/{video_id}_wrist_data.json"
+                video_path = f"/data1/zjyang/program/egodex/traj_formal/{task_name}_{video_id}_thumb_simple.mp4"
+                
+                # 检查视频是否存在
+                if not os.path.exists(video_path):
+                    print(f"视频文件不存在: {video_path}，跳过")
+                    continue
+                    
+                # 获取视频的实际帧数
+                cap = cv2.VideoCapture(video_path)
+                if not cap.isOpened():
+                    print(f"无法打开视频: {video_path}，跳过")
+                    continue
+                    
+                num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                cap.release()
+                
+                print(f"处理 {task_name} 的视频 {video_id}，共 {num_frames} 帧")
+                
+                # 输出视频路径
+                output_video_dir = f"/data1/zjyang/program/third/RoboTwin/code_painting/{task_name}"
+                output_video_path = f"{output_video_dir}/{video_id}_xz_forward_{num_frames}frames_{fps}fps.mp4"
+                if not os.path.exists(output_video_dir):
+                    os.makedirs(output_video_dir)
+                
+                # 生成机器人视频
+                generate_robot_video(
+                    json_path=json_path,
+                    output_video_path=output_video_path,
+                    num_frames=num_frames,
+                    fps=fps,
+                    task_name=task_name,
+                    show_hand_distance=False,
+                    show_json_distance=False
+                )
+    else:
+        # 单个视频生成
+        task_name = input("请输入任务名称 (例如: clean_cups): ").strip()
+        video_id = input("请输入视频ID (默认0): ").strip() or "0"
+        fps = int(input("请输入视频帧率 (默认5): ") or "5")
+        
+        json_path = f"{base_path}/{task_name}/{video_id}_wrist_data.json"
+        video_path = f"/data1/zjyang/program/egodex/traj_formal/{task_name}_{video_id}_thumb_simple.mp4"
+        
+        # 检查文件是否存在
+        if not os.path.exists(json_path):
+            print(f"JSON文件不存在: {json_path}")
+            return
+            
+        if not os.path.exists(video_path):
+            print(f"视频文件不存在: {video_path}")
+            return
+        
+        # 获取视频的实际帧数
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            print(f"无法打开视频: {video_path}")
+            return
+            
+        num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        cap.release()
+        
+        print(f"视频共 {num_frames} 帧")
     
     # 输出视频路径
     output_video_dir = f"/data1/zjyang/program/third/RoboTwin/code_painting/{task_name}"
-    output_video_path = f"{output_video_dir}/{task_name}_{video_id}_{fps}fps.mp4"
+    output_video_path = f"{output_video_dir}/{video_id}_xz_forward_{num_frames}frames_{fps}fps.mp4"
     if not os.path.exists(output_video_dir):
         os.makedirs(output_video_dir)  
+        
     # 生成机器人视频
     generate_robot_video(
         json_path=json_path,
         output_video_path=output_video_path,
-        num_frames=num_frames, #299, #10,
-        fps=fps,  # 使用用户指定的帧率
+            num_frames=num_frames,
+            fps=fps,
         task_name=task_name,
-        show_hand_distance=True,  # 显示左右手距离
-        show_json_distance=True   # 显示原始JSON坐标差异
-    )
-    
-    # 创建并排视频
-    side_by_side_path = f"code_painting/{task_name}/{video_id}_side_by_side_{fps}fps.mp4"
-    create_side_by_side_video(
-        original_video_path=video_path,
-        generated_video_path=output_video_path,
-        output_path=side_by_side_path,
-        fps=fps
+            show_hand_distance=False,
+            show_json_distance=False
     )
 
 
 if __name__ == "__main__":
     # 选择运行模式
-    mode = input("选择运行模式 (1: 单帧渲染, 2: 视频生成, 3: 创建并排视频): ").strip()
+    mode = input("选择运行模式 (1: 单帧渲染, 2: 视频生成): ").strip()
     
     if mode == "1":
         # 获取用户输入的帧索引
@@ -1417,28 +1302,6 @@ if __name__ == "__main__":
             demo_usage()
     elif mode == "2":
         demo_video_generation()
-    elif mode == "3":
-        # 单独创建并排视频
-        task_name = "clean_cups"#"assemble_disassemble_furniture_bench_lamp"
-        video_id = "0"
-        fps = 5  # 默认值
-        num_frames = 299  # 默认值
-
-        
-        # 原始视频路径
-        # original_video = f"/home/pine/RoboTwin2/code_painting/{task_name}/{video_id}.mp4"
-        original_video = f"/data1/zjyang/program/egodex/traj_formal/{task_name}_{video_id}_thumb_simple.mp4"
-        # 生成的机器人视频路径
-        generated_video = f"/data1/zjyang/program/third/RoboTwin/code_painting/{task_name}/{video_id}_xz_forward_{num_frames}frames_{fps}fps.mp4"
-        # 输出并排视频路径
-        output_path = f"/data1/zjyang/program/third/RoboTwin/code_painting/{task_name}/{video_id}_side_by_side_{fps}fps.mp4"
-        
-        create_side_by_side_video(
-            original_video_path=original_video,
-            generated_video_path=generated_video,
-            output_path=output_path,
-            fps=fps
-        )
     else:
-        print("无效选择，运行单帧渲染...")
-        demo_usage()
+        print("无效选择，运行视频生成...")
+        demo_video_generation()
